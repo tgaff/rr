@@ -6,23 +6,40 @@ module RR
         :TestUnit
       ]
 
-      def const_missing(adapter_const_name)
-        unless DEPRECATED_ADAPTERS.include?(adapter_const_name)
+      def const_missing(name)
+        if name == :RRMethods
+          # This was once here but is now deprecated
+          RR.constant_deprecated_in_favor_of(
+            'RR::Adapters::RRMethods',
+            'RR::DSL'
+          )
+          RR::DSL
+
+        elsif DEPRECATED_ADAPTERS.include?(name)
+          # People who manually include RR into their test framework will use
+          # these constants
+          show_warning_for(name)
+          adapter = shim_adapters[name] ||=
+            case name
+              when :TestUnit
+                find_applicable_adapter(
+                  :TestUnit1,
+                  :TestUnit2ActiveSupport,
+                  :TestUnit2
+                )
+              when :MiniTest
+                find_applicable_adapter(
+                  :MinitestActiveSupport,
+                  :Minitest,
+                  :MiniTest4ActiveSupport,
+                  :MiniTest4
+                )
+            end
+          adapter
+
+        else
           super
-          return
         end
-
-        show_warning_for(adapter_const_name)
-
-        adapter = shim_adapters[adapter_const_name] ||=
-          case adapter_const_name
-            when :TestUnit
-              find_applicable_adapter(:TestUnit1, :TestUnit2ActiveSupport, :TestUnit2)
-            when :MiniTest
-              find_applicable_adapter(:MinitestActiveSupport, :Minitest, :MiniTest4ActiveSupport, :MiniTest4)
-          end
-
-        adapter
       end
 
       private
@@ -56,11 +73,11 @@ EOT
       end
     end
 
-    # Old versions of the RSpec-2 adapter for RR floating out in the wild still
-    # refer to this constant
     module Rspec
       class << self
         def const_missing(name)
+          # Old versions of the RSpec-2 adapter for RR floating out in the wild
+          # still refer to this constant
           if name == :InvocationMatcher
             RR.constant_deprecated_in_favor_of(
               'RR::Adapters::Rspec::InvocationMatcher',
@@ -71,6 +88,18 @@ EOT
             super
           end
         end
+      end
+    end
+  end
+
+  module Extensions
+    def self.const_missing(name)
+      if name == :InstanceMethods
+        # This is here because RSpec-2's RR adapter uses it
+        RR.constant_deprecated_in_favor_of('RR::Extensions::InstanceMethods', 'RR::DSL')
+        RR::DSL
+      else
+        super
       end
     end
   end

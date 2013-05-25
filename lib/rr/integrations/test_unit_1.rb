@@ -17,7 +17,7 @@ module RR
 
       def hook(test_case_class = ::Test::Unit::TestCase)
         test_case_class.class_eval do
-          include RR::Adapters::RRMethods
+          include RR::DSL
           include Mixin
 
           unless instance_methods.detect {|method_name| method_name.to_sym == :setup_with_rr }
