@@ -49,13 +49,45 @@ module RR
       end
 
       def show_warning_for(adapter_const_name)
-        warn <<EOT
---------------------------------------------------------------------------------
-RR deprecation warning: RR now has an autohook system. You don't need to
-`include RR::Adapters::*` in your test framework's base class anymore.
---------------------------------------------------------------------------------
+        RR.deprecation_warning(<<EOT.strip)
+RR now has an autohook system. You don't need to `include RR::Adapters::*` in
+your test framework's base class anymore.
 EOT
       end
+    end
+
+    # Old versions of the RSpec-2 adapter for RR floating out in the wild still
+    # refer to this constant
+    module Rspec
+      class << self
+        def const_missing(name)
+          if name == :InvocationMatcher
+            RR.constant_deprecated_in_favor_of(
+              'RR::Adapters::Rspec::InvocationMatcher',
+              'RR::Integrations::RSpec::InvocationMatcher'
+            )
+            RR::Integrations::RSpec::InvocationMatcher
+          else
+            super
+          end
+        end
+      end
+    end
+  end
+
+  class << self
+    def deprecation_warning(msg)
+      Kernel.warn [
+        ('-' * 80),
+        'Warning from RR:',
+        msg,
+        "(Called from: #{caller[1]})",
+        ('-' * 80),
+      ].join("\n")
+    end
+
+    def constant_deprecated_in_favor_of(old_name, new_name)
+      deprecation_warning "#{old_name} is deprecated; please use #{new_name} instead."
     end
   end
 end
