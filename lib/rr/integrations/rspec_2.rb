@@ -12,7 +12,7 @@ module RR
       def hook
         ::RSpec.configure do |config|
           config.mock_with Mixin
-          config.include RR::Adapters::RRMethods
+          config.include RR::API
         end
         patterns = ::RSpec.configuration.backtrace_clean_patterns
         unless patterns.include?(RR::Errors::BACKTRACE_IDENTIFIER)

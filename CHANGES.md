@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 (HEAD)
+
+* Deprecate RR::Adapters::RRMethods, which is now available as RR::API.
+
 ## 1.1.0 (May 20, 2013)
 
 NOTE: RR development moved from [btakita/rr][btakita-rr] to [rr/rr][rr-rr].

@@ -80,7 +80,7 @@ describe 'Integration with RSpec 2' do
       module RR
         module Adapters
           module RSpec2
-            include RRMethods
+            include API
 
             def setup_mocks_for_rspec
               RR.reset
