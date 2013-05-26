@@ -1,21 +1,197 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
-class StubSpecFixture
-  attr_reader :initialize_arguments
+describe 'stub' do
+  # what if the method exists?
+  # what if the method doesn't exist?
+  # what if a block is given in order to define the return value of the method?
+  # what if .returns is used to define the return value?
+  # what if an argument expectation is defined?
+  # what if an argument expectation is defined with .with?
+  # what about ordered calls?
+  # what if the subject being stubbed is a proxy object? (e.g. AR association objects)
+  # what if you pass a block to #stub with a block arg?
+  # what if you pass a block to #stub without a block arg?
+  # what if the method being stubbed is an operator?
+  # what if you mock a method with arguments and then stub it with no args?
+  # what if you call .yields on a Double with no arguments?
+  # what if you call .yields on a Double with arguments?
+  # what if you chain .yields calls?
+  # what if you try to call #flatten on a Double?
 
-  def initialize(*args)
-    @initialize_arguments = args
-    yield if block_given?
-    method_run_in_initialize
+  # what if we are doing all of this with a class method instead of an instance method? (except the proxy one)
+
+  context 'setting implementation' do
+    it "without giving a block is the same as returning nil" do
+      object = object_with_method(:some_method, 'value')
+      stub(object).some_method
+      expect(object.some_method).to eq nil
+    end
+
+    it "by giving a block works" do
+      method_called = false
+      object = object_with_method(:some_method, 'value')
+      stub(object).some_method { method_called = true; 'bar' }
+      expect(method_called).to eq true
+      expect(object.some_method).to eq 'bar'
+    end
+
+    it "by using #returns works" do
+      method_called = false
+      object = object_with_method(:some_method) { 'value' }
+      stub(object).some_method.returns { method_called = true; 'bar' }
+      expect(method_called).to eq true
+      expect(object.some_method).to eq 'bar'
+    end
   end
 
-  def method_run_in_initialize
+  context 'stubbing invocations of specific argument sets' do
+    context 'by passing arguments to the double definition directly' do
+      it "defines the double just for that specific invocation" do
+        object = object_with_method(:some_method) {|arg| 'value' }
+        stub(object).some_method(1) { 'bar' }
+        expect(object.some_method(1)).to eq 'bar'
+      end
 
+      it "raises an error if an unstubbed invocation occurs" do
+        object = object_with_method(:some_method) {|arg| }
+        stub(object).some_method(1)
+        expect { object.some_method(2) }.to raise_error(RR::Errors::DoubleNotFoundError)
+      end
+
+      it "lets you define a catch-all double by omitting the argument set" do
+        object = object_with_method(:some_method) {|arg| }
+        stub(object).some_method(1)
+        stub(object).some_method
+        object.some_method(2)  # shouldn't raise an error
+      end
+    end
+
+    context 'by using #with and arguments' do
+      it "defines the double just for that specific invocation" do
+        object = object_with_method(:some_method) {|arg| 'value' }
+        stub(object).some_method.with(1) { 'bar' }
+        expect(object.some_method(1)).to eq 'bar'
+      end
+
+      it "raises an error if an unstubbed invocation occurs" do
+        object = object_with_method(:some_method) {|arg| }
+        stub(object).some_method.with(1)
+        expect { object.some_method(2) }.to raise_error(RR::Errors::DoubleNotFoundError)
+      end
+
+      it "lets you define a catch-all double by omitting the #with" do
+        object = object_with_method(:some_method) {|arg| }
+        stub(object).some_method.with(1)
+        stub(object).some_method
+        object.some_method(2)  # shouldn't raise an error
+      end
+    end
   end
-end
 
-describe '#stub' do
-  subject { Object.new }
+  context 'block form' do
+    it "allows multiple methods to be stubbed" do
+      object = object_with_methods(
+        :some_method => lambda { 'existing value 1' },
+        :another_method => lambda { 'existing value 2' }
+      )
+      stub(object) do
+        some_method { 'value 1' }
+        another_method { 'value 2' }
+      end
+      expect(object.some_method).to eq 'value 1'
+      expect(object.another_method).to eq 'value 2'
+    end
+
+    it "yields rather than using instance_eval if a block argument is given" do
+      object = object_with_methods(
+        :some_method => lambda { 'existing value 1' },
+        :another_method => lambda { 'existing value 2' }
+      )
+      y = 0
+      callable = lambda { y = 1 }
+      stub(object) do |o|
+        o.some_method { 'value 1' }
+        o.another_method { 'value 2' }
+        callable.call
+      end
+      expect(object.some_method).to eq 'value 1'
+      expect(object.another_method).to eq 'value 2'
+      expect(y).to eq 1
+    end
+  end
+
+  it "lets you stub operator methods as well as normal ones" do
+    object = Object.new
+    stub(object).== { 'value' }
+    expect(object == :whatever).to eq 'value'
+  end
+
+  context 'stubbing sequential invocations of a method' do
+    it "works" do
+      object = object_with_method(:some_method)
+      stub(object).some_method { 'value 1' }.once.ordered
+      stub(object).some_method { 'value 2' }.once.ordered
+      expect(subject.some_method).to eq 'value 1'
+      expect(subject.some_method).to eq 'value 2'
+    end
+
+    it "works when using #then instead of #ordered and chaining" do
+      object = object_with_method(:some_method)
+      stub(object).
+        some_method { 'value 1' }.once.then.
+        some_method { 'value 2' }.once
+      expect(subject.some_method).to eq 'value 1'
+      expect(subject.some_method).to eq 'value 2'
+    end
+  end
+
+  # btakita/rr issue #24
+  # this happens when defining a double on an ActiveRecord association object
+  context 'when the object being stubbed is actually a proxy for another object' do
+    it "places the stub on the proxy object and not the target object" do
+      target_object = target_object_class.new
+      proxy_object = proxy_object_class.new(target_object)
+      #expect(proxy.methods).to match_array(proxy_target.methods)
+      stub(proxy_object).some_method { 'value'}
+      expect(proxy.some_object).to eq 'value'
+    end
+
+    def target_object_class
+      Class.new do
+        def some_method
+          'existing value'
+        end
+      end
+    end
+
+    def proxy_object_class
+      Class.new do
+        # This matches what AssociationProxy was like as of Rails 2
+        instance_methods.each do |m|
+          undef_method m unless m.to_s =~ /^(?:nil\?|send|object_id|to_a)$|^__|^respond_to|proxy_/
+        end
+
+        def initialize(target)
+          @target = target
+        end
+
+        def method_missing(name, *args, &block)
+          @target.send(name, *args, &block)
+        end
+      end
+    end
+  end
+
+
+
+
+
+
+
+
+
+
+
 
   it "creates a stub DoubleInjection Double" do
     stub(subject).foobar {:baz}
@@ -81,35 +257,9 @@ describe '#stub' do
     expect(subject.to_sym).to eq :crazy
   end
 
-  it "stubs instance_of" do
-    stub.instance_of(StubSpecFixture) do |o|
-      o.to_s {"High Level Spec"}
-    end
-    expect(StubSpecFixture.new.to_s).to eq "High Level Spec"
-  end
-
   it "stubs methods without letters" do
     stub(subject).__send__(:==) {:equality}
     expect((subject == 55)).to eq :equality
-  end
-
-  it "stubs methods invoked in #initialize while passing along the #initialize arg" do
-    method_run_in_initialize_stubbed = false
-    stub.instance_of(StubSpecFixture) do |o|
-      o.method_run_in_initialize {method_run_in_initialize_stubbed = true}
-    end
-    StubSpecFixture.new
-    expect(method_run_in_initialize_stubbed).to be_true
-  end
-
-  it "passed the arguments and block passed to #initialize" do
-    block_called = false
-    stub.instance_of(StubSpecFixture) do |o|
-      o.method_run_in_initialize
-    end
-    instance = StubSpecFixture.new(1, 2) {block_called = true}
-    expect(instance.initialize_arguments).to eq [1, 2]
-    expect(block_called).to be_true
   end
 
   context "mock then stub" do
@@ -124,17 +274,17 @@ describe '#stub' do
   context "stub that yields" do
     context "when yields called without any arguments" do
       it "yields only once" do
-        called_from_block = mock!.foo.once.subject
+        called_from_block = mock!.some_method.once.subject
         block_caller = stub!.bar.yields.subject
-        block_caller.bar { called_from_block.foo }
+        block_caller.bar { called_from_block.some_method }
       end
     end
 
     context "when yields called with an argument" do
       it "yields only once" do
-        called_from_block = mock!.foo(1).once.subject
+        called_from_block = mock!.some_method(1).once.subject
         block_caller = stub!.bar.yields(1).subject
-        block_caller.bar { |argument| called_from_block.foo(argument) }
+        block_caller.bar { |argument| called_from_block.some_method(argument) }
       end
     end
 
@@ -142,9 +292,9 @@ describe '#stub' do
       it "yields several times" do
         pending "This test is failing with a TimesCalledError"
 
-        called_from_block = mock!.foo(1).once.then.foo(2).once.subject
+        called_from_block = mock!.some_method(1).once.then.some_method(2).once.subject
         block_caller = stub!.bar.yields(1).yields(2).subject
-        block_caller.bar { |argument| called_from_block.foo(argument) }
+        block_caller.bar { |argument| called_from_block.some_method(argument) }
       end
     end
   end
@@ -153,7 +303,7 @@ describe '#stub' do
   describe 'when wrapped in an array that is then flattened' do
     context 'when the method being stubbed is not defined' do
       it "does not raise an error" do
-        stub(subject).foo
+        stub(subject).some_method
         expect([subject].flatten).to eq [subject]
       end
 
@@ -161,7 +311,7 @@ describe '#stub' do
         subject.instance_eval do
           def to_ary; []; end
         end
-        stub(subject).foo
+        stub(subject).some_method
         expect([subject].flatten).to eq []
       end
     end
@@ -169,12 +319,12 @@ describe '#stub' do
     context 'when the method being stubbed is defined' do
       before do
         subject.instance_eval do
-          def foo; end
+          def some_method; end
         end
       end
 
       it "does not raise an error" do
-        stub(subject).foo
+        stub(subject).some_method
         expect([subject].flatten).to eq [subject]
       end
 
@@ -182,9 +332,17 @@ describe '#stub' do
         eigen(subject).class_eval do
           def to_ary; []; end
         end
-        stub(subject).foo
+        stub(subject).some_method
         expect([subject].flatten).to eq []
       end
     end
+  end
+
+  def object_with_method(method_name, &implementation)
+    implementation ||= lambda { }
+    klass = Class.new do
+      define_method(method_name, &implementation)
+    end
+    klass.new
   end
 end
