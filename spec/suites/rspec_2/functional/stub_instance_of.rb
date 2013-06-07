@@ -1,5 +1,7 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
+# TODO: Review
+
 describe 'stub.instance_of' do
   it "lets you stub instance methods of the given class" do
     klass = define_class

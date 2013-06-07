@@ -122,6 +122,7 @@ module RR
 
       BoundObjects = {}
 
+      # TODO [@mcmire, 30 May 2013]: What is the purpose of this? Why self-destruct the method?
       def bind_method_that_self_destructs_and_delegates_to_method_missing
         id = BoundObjects.size
         BoundObjects[id] = subject_class

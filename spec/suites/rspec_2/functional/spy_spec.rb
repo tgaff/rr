@@ -1,5 +1,7 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
+# TODO: refactor
+
 describe '#spy' do
   subject { Object.new }
 

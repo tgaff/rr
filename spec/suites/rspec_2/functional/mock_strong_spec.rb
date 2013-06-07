@@ -1,6 +1,6 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
-describe 'strong' do
+describe 'mock.strong' do
   def build_object_with_methods(*args, &block)
     if args[0].is_a?(Symbol)
       methods = { args[0] => (block || lambda {}) }
@@ -36,57 +36,104 @@ describe 'strong' do
     context 'comparing the arity between the method and double definition' do
       it "succeeds if both have no arity" do
         object = build_object_with_method(:some_method) { }
-        strong(object).some_method
+        mock.strong(object).some_method
+        object.some_method
       end
 
       it "fails if the former has no arity and the latter does" do
         object = build_object_with_method(:some_method) { }
-        expect { strong(object).some_method(1) }.to \
+        expect { mock.strong(object).some_method(1) }.to \
           raise_error(RR::Errors::SubjectHasDifferentArityError)
+        RR.reset
       end
 
       it "fails if the former has arity but the latter doesn't" do
         object = build_object_with_method(:some_method) {|arg| }
-        expect { strong(object).some_method }.to \
+        expect { mock.strong(object).some_method }.to \
           raise_error(RR::Errors::SubjectHasDifferentArityError)
+        RR.reset
       end
 
       it "succeeds if both have a finite number of arguments" do
         object = build_object_with_method(:some_method) {|arg| }
-        strong(object).some_method(1)
+        mock.strong(object).some_method(1)
+        RR.reset
       end
 
       it "succeeds if both have a variable number of arguments" do
         object = build_object_with_method(:some_method) {|*args| }
-        strong(object).some_method(1)
-        strong(object).some_method(1, 2)
-        strong(object).some_method(1, 2, 3)
+        mock.strong(object).some_method(1)
+        mock.strong(object).some_method(1, 2)
+        mock.strong(object).some_method(1, 2, 3)
+        RR.reset
       end
 
       it "succeeds if both have finite and variable number of arguments" do
         object = build_object_with_method(:some_method) {|arg1, arg2, *rest| }
-        strong(object).some_method(1, 2)
-        strong(object).some_method(1, 2, 3)
+        mock.strong(object).some_method(1, 2)
+        mock.strong(object).some_method(1, 2, 3)
+        RR.reset
       end
 
       it "fails if the finite arguments are not matched before the variable arguments" do
         object = build_object_with_method(:some_method) {|arg1, arg2, *rest| }
-        expect { strong(object).some_method(1) }.to \
+        expect { mock.strong(object).some_method(1) }.to \
           raise_error(RR::Errors::SubjectHasDifferentArityError)
+        RR.reset
+      end
+    end
+
+    specify "TimesCalledError is raised at the verify step if the method is never called" do
+      object = build_object_with_method(:some_method)
+      mock.strong(object).some_method
+      expect { RR.verify }.to raise_error(RR::Errors::TimesCalledError)
+    end
+
+    context 'with a times-called qualifier' do
+      specify "TimesCalledError is raised at the verify step if the method is called too few times" do
+        object = build_object_with_method(:some_method)
+        mock.strong(object).some_method.times(3)
+        object.some_method
+        object.some_method
+        expect { RR.verify }.to raise_error(RR::Errors::TimesCalledError)
+      end
+
+      specify "TimesCalledError is raised as soon as the method is called one too many times" do
+        object = build_object_with_method(:some_method)
+        mock.strong(object).some_method.times(3)
+        object.some_method
+        object.some_method
+        object.some_method
+        expect { object.some_method }.to raise_error(RR::Errors::TimesCalledError)
+        RR.reset
+      end
+    end
+
+    context 'with a never-called qualifier' do
+      it "works as long as the method is never called" do
+        object = build_object_with_method(:some_method)
+        mock.strong(object).some_method.never
+      end
+
+      specify "TimesCalledError is raised as soon as the method is called" do
+        object = build_object_with_method(:some_method)
+        mock.strong(object).some_method.never
+        expect { object.some_method }.to raise_error(RR::Errors::TimesCalledError)
+        RR.reset
       end
     end
 
     context 'setting implementation' do
       it "without giving a block is the same as returning nil" do
         object = build_object_with_method(:some_method) { 'value' }
-        strong(object).some_method
+        mock.strong(object).some_method
         expect(object.some_method).to eq nil
       end
 
       it "by giving a block works" do
         method_called = false
         object = build_object_with_method(:some_method) { 'value' }
-        strong(object).some_method { method_called = true; 'bar' }
+        mock.strong(object).some_method { method_called = true; 'bar' }
         expect(object.some_method).to eq 'bar'
         expect(method_called).to eq true
       end
@@ -94,23 +141,23 @@ describe 'strong' do
       it "by using #returns works" do
         method_called = false
         object = build_object_with_method(:some_method) { 'value' }
-        strong(object).some_method.returns { method_called = true; 'bar' }
+        mock.strong(object).some_method.returns { method_called = true; 'bar' }
         expect(object.some_method).to eq 'bar'
         expect(method_called).to eq true
       end
     end
 
-    context 'stubbing invocations of specific argument sets' do
+    context 'mocking invocations of specific argument sets' do
       context 'by passing arguments to the double definition directly' do
         it "defines the double just for that specific invocation" do
           object = build_object_with_method(:some_method) {|arg| 'value' }
-          strong(object).some_method(1).returns { 'bar' }
+          mock.strong(object).some_method(1).returns { 'bar' }
           expect(object.some_method(1)).to eq 'bar'
         end
 
         specify "DoubleNotFoundError is raised the moment the method is called but not with the specified arguments" do
           object = build_object_with_method(:some_method) {|arg| }
-          strong(object).some_method(1)
+          mock.strong(object).some_method(1)
           expect { object.some_method }.to raise_error(RR::Errors::DoubleNotFoundError)
           RR.reset
         end
@@ -118,7 +165,7 @@ describe 'strong' do
         it "lets you define a catch-all double by definining a stub without arguments" do
           object = build_object_with_method(:some_method) {|arg| }
           stub(object).some_method
-          strong(object).some_method(1)
+          mock.strong(object).some_method(1)
           object.some_method(1)
           object.some_method(2)  # shouldn't raise an error
         end
@@ -127,7 +174,7 @@ describe 'strong' do
       context 'by using #with and arguments' do
         it "doesn't work (although it probably should)" do
           object = build_object_with_method(:some_method) {|arg| 'value' }
-          expect { strong(object).some_method.with(1) }.to \
+          expect { mock.strong(object).some_method.with(1) }.to \
             raise_error(RR::Errors::SubjectHasDifferentArityError)
         end
       end
@@ -137,7 +184,7 @@ describe 'strong' do
       context 'without arguments' do
         it "inserts a yield that passes no arguments" do
           object = build_object_with_method(:some_method)
-          strong(object).some_method.yields
+          mock.strong(object).some_method.yields
           x = 0
           object.some_method { x = 1 }
           expect(x).to eq 1
@@ -145,13 +192,13 @@ describe 'strong' do
 
         it "does not affect setting the implementation otherwise" do
           object = build_object_with_method(:some_method) { 'existing value' }
-          strong(object).some_method { 'value' }.yields
+          mock.strong(object).some_method { 'value' }.yields
           expect(object.some_method { }).to eq 'value'
         end
 
         it "also lets you set the implementation in preference to #returns" do
           object = build_object_with_method(:some_method) { 'existing value' }
-          strong(object).some_method.yields { 'value' }
+          mock.strong(object).some_method.yields { 'value' }
           expect(object.some_method { }).to eq 'value'
         end
       end
@@ -159,7 +206,7 @@ describe 'strong' do
       context 'with arguments' do
         it "inserts a yield that passes those arguments" do
           object = build_object_with_method(:some_method)
-          strong(object).some_method.yields(1)
+          mock.strong(object).some_method.yields(1)
           x = 0
           object.some_method {|a| x = a }
           expect(x).to eq 1
@@ -167,25 +214,25 @@ describe 'strong' do
 
         it "does not affect setting the implementation otherwise" do
           object = build_object_with_method(:some_method) { 'existing value' }
-          strong(object).some_method { 'value' }.yields(1)
+          mock.strong(object).some_method { 'value' }.yields(1)
           expect(object.some_method { }).to eq 'value'
         end
 
         it "also lets you set the implementation in preference to #returns" do
           object = build_object_with_method(:some_method) { 'existing value' }
-          strong(object).some_method.yields(1) { 'value' }
+          mock.strong(object).some_method.yields(1) { 'value' }
           expect(object.some_method { }).to eq 'value'
         end
       end
     end
 
     context 'block form' do
-      it "allows multiple methods to be stubbed" do
+      it "allows multiple methods to be mocked" do
         object = build_object_with_methods(
           :some_method => lambda { 'existing value 1' },
           :another_method => lambda { 'existing value 2' }
         )
-        strong(object) do
+        mock.strong(object) do
           some_method { 'value 1' }
           another_method { 'value 2' }
         end
@@ -200,7 +247,7 @@ describe 'strong' do
         )
         y = 0
         callable = lambda { y = 1 }
-        strong(object) do |o|
+        mock.strong(object) do |o|
           o.some_method { 'value 1' }
           o.another_method { 'value 2' }
           callable.call
@@ -211,11 +258,11 @@ describe 'strong' do
       end
     end
 
-    context 'stubbing sequential invocations of a method' do
+    context 'mocking sequential invocations of a method' do
       it "works" do
         object = build_object_with_method(:some_method)
-        strong(object).some_method { 'value 1' }.twice.ordered
-        strong(object).some_method { 'value 2' }.once.ordered
+        mock.strong(object).some_method { 'value 1' }.twice.ordered
+        mock.strong(object).some_method { 'value 2' }.once.ordered
         expect(object.some_method).to eq 'value 1'
         expect(object.some_method).to eq 'value 1'
         expect(object.some_method).to eq 'value 2'
@@ -223,7 +270,7 @@ describe 'strong' do
 
       it "works when using #then instead of #ordered" do
         object = build_object_with_method(:some_method)
-        strong(object).
+        mock.strong(object).
           some_method { 'value 1' }.once.then.
           some_method { 'value 2' }.once
         expect(object.some_method).to eq 'value 1'
@@ -233,12 +280,12 @@ describe 'strong' do
 
     # btakita/rr issue #24
     # this happens when defining a double on an ActiveRecord association object
-    context 'when the object being stubbed is actually a proxy for another object' do
+    context 'when the object being mocked is actually a proxy for another object' do
       it "doesn't work" do
         target_object = build_object_with_method(:some_method) { 'existing value' }
         proxy_object = proxy_object_class.new(target_object)
         expect(proxy_object.methods).to match_array(target_object.methods)
-        expect { strong(proxy_object).some_method }.to raise_error(RR::Errors::SubjectDoesNotImplementMethodError)
+        expect { mock.strong(proxy_object).some_method }.to raise_error(RR::Errors::SubjectDoesNotImplementMethodError)
       end
 
       def proxy_object_class
@@ -267,7 +314,8 @@ describe 'strong' do
     context 'when wrapped in an array that is then flattened' do
       it "does not raise an error" do
         object = build_object_with_method(:some_method)
-        strong(object).some_method
+        mock.strong(object).some_method
+        object.some_method
         expect([object].flatten).to eq [object]
       end
 
@@ -276,7 +324,8 @@ describe 'strong' do
         (class << object; self; end).class_eval do
           def to_ary; []; end
         end
-        strong(object).some_method
+        mock.strong(object).some_method
+        object.some_method
         expect([object].flatten).to eq []
       end
     end
@@ -285,7 +334,7 @@ describe 'strong' do
   context "with a method that doesn't exist" do
     it "doesn't work" do
       object = Object.new
-      expect { strong(object).some_method }.to \
+      expect { mock.strong(object).some_method }.to \
         raise_error(RR::Errors::SubjectDoesNotImplementMethodError)
     end
   end
@@ -293,20 +342,20 @@ describe 'strong' do
   context 'on class methods' do
     it "works if the method already exists on the class" do
       klass = build_class_with_method(:some_method) { 'existing value' }
-      strong(klass).some_method { 'value' }
+      mock.strong(klass).some_method { 'value' }
       expect(klass.some_method).to eq 'value'
     end
 
     it "doesn't work if the method doesn't already exist on the class" do
       klass = Class.new
-      expect { strong(klass).some_method }.to \
+      expect { mock.strong(klass).some_method }.to \
         raise_error(RR::Errors::SubjectDoesNotImplementMethodError)
     end
 
     it "in a parent class doesn't affect child classes" do
       parent_class = build_class_with_method(:some_method) { 'existing value' }
       child_class = Class.new(parent_class)
-      strong(parent_class).some_method { 'value' }
+      mock.strong(parent_class).some_method { 'value' }
       parent_class.some_method
       expect(child_class.some_method).to eq 'existing value'
     end
@@ -314,7 +363,7 @@ describe 'strong' do
 
   it "lets you stub operator methods as well as normal ones" do
     object = Object.new
-    strong(object).==(anything) { 'value' }
+    mock.strong(object).==(anything) { 'value' }
     expect(object == :whatever).to eq 'value'
   end
 end
