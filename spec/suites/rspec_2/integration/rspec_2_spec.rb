@@ -122,4 +122,18 @@ describe 'Integration with RSpec 2' do
     EOT
     all_tests_should_pass(output)
   end
+
+  describe '#have_received' do
+    it "succeeds if the method was called with the given arguments" do
+      stub(subject).foobar
+      subject.foobar(1, 2)
+      expect(subject).to have_received.foobar(1, 2)
+    end
+
+    it "fails if the method was called with different arguments" do
+      expect {
+        expect(subject).to have_received.foobar(1, 2, 3)
+      }.to raise_error(RSpec::Expectations::ExpectationNotMetError)
+    end
+  end
 end
