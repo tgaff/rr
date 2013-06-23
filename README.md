@@ -1,5 +1,7 @@
 # RR [![Build Status](https://secure.travis-ci.org/rr/rr.png)](http://travis-ci.org/rr/rr) [![Code Climate GPA](https://codeclimate.com/github/rr/rr.png)](https://codeclimate.com/github/rr/rr)
 
+WHAKLJDLKDSJF
+
 RR is a test double framework for Ruby that features a rich selection of double
 techniques and a terse syntax.
 
